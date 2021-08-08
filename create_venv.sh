@@ -8,3 +8,4 @@ if [ ! -d "$venv_dir" ]; then
 fi
 
 source "$venv_dir/bin/activate"
+python -m pip install --upgrade pip
