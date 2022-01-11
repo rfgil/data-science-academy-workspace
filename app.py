@@ -60,7 +60,7 @@ app = Flask(__name__)
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    response = {'proba': 1}
+    response = {'proba': float(1)}
     return jsonify(response)
 
 
