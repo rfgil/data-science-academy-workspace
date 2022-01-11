@@ -60,29 +60,7 @@ app = Flask(__name__)
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    # flask provides a deserialization convenience function called
-    # get_json that will work if the mimetype is application/json
-    obs_dict = request.get_json()
-    _id = obs_dict['id']
-    observation = obs_dict['observation']
-    # now do what we already learned in the notebooks about how to transform
-    # a single observation into a dataframe that will work with a pipeline
-    obs = pd.DataFrame([observation], columns=columns).astype(dtypes)
-    # now get ourselves an actual prediction of the positive class
-    proba = pipeline.predict_proba(obs)[0, 1]
-    response = {'proba': proba}
-    p = Prediction(
-        observation_id=_id,
-        proba=proba,
-        observation=request.data
-    )
-    try:
-        p.save()
-    except IntegrityError:
-        error_msg = 'Observation ID: "{}" already exists'.format(_id)
-        response['error'] = error_msg
-        print(error_msg)
-        DB.rollback()
+    response = {'proba': 1}
     return jsonify(response)
 
 
