@@ -26,8 +26,8 @@ def predict():
         response["observation_id"] = request["observation_id"]
     except:
         response["observation_id"] = None
-        response["error"] = "Unavailable observation_id"
-        return response
+        #response["error"] = "Unavailable observation_id"
+        #return response
 
     # Retrieve request columns from 'data'
     try:
