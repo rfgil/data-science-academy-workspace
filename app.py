@@ -19,27 +19,28 @@ app = Flask(__name__)
 
 @app.route('/predict', methods=['POST'])
 def predict():
+    json_request = request.get_json()
     # YOUR CODE HERE
     response = {}
 
     try:
-        response["observation_id"] = request["observation_id"]
+        response["observation_id"] = json_request["observation_id"]
     except:
         response["observation_id"] = None
-        #response["error"] = "Unavailable observation_id"
-        #return response
+        response["error"] = "Unavailable observation_id"
+        return response
 
-    # Retrieve request columns from 'data'
+    # Retrieve json_request columns from 'data'
     try:
-        request_columns = list(request["data"].keys())
+        json_request_columns = list(json_request["data"].keys())
     except:
         response["error"] = "data does not exist"
         return response
 
 
-    # Check all requested columns are valid
+    # Check all json_requested columns are valid
     valid_columns = ["age", "sex", "race", "workclass", "education", "marital-status", "capital-gain", "capital-loss", "hours-per-week"]
-    for column in request_columns:
+    for column in json_request_columns:
         if (column != "observation_id" and
             column != "probability" and
             column != "prediction" and
@@ -49,45 +50,45 @@ def predict():
 
     # Check if there are missing columns
     for column in valid_columns:
-        if(column not in request_columns):
+        if(column not in json_request_columns):
             response["error"] = column + " column is missing"
             return response
 
     # Check if 'sex' column matches expected input
-    if request["data"]["sex"].lower() not in ['male', 'female'] :
-        response["error"] = "Unexpected " + request["data"]["sex"] + " category on 'sex' column"
+    if json_request["data"]["sex"].lower() not in ['male', 'female'] :
+        response["error"] = "Unexpected " + json_request["data"]["sex"] + " category on 'sex' column"
         return response
 
     # Check if 'race' column matches expected input
-    if request["data"]["race"].lower() not in ['white', 'black', 'asian-pac-islander', 'amer-indian-eskimo', 'other']:
-        response["error"] = "Unexpected " + request["data"]["race"] + " category on 'race' column"
+    if json_request["data"]["race"].lower() not in ['white', 'black', 'asian-pac-islander', 'amer-indian-eskimo', 'other']:
+        response["error"] = "Unexpected " + json_request["data"]["race"] + " category on 'race' column"
         return response
 
     # Check if 'age' column matches expected input
-    age = int(request["data"]["age"])
+    age = int(json_request["data"]["age"])
     if age < 0 or age > 100:
         response["error"] = "Unexpected 'age' of " + str(age) + " years old"
         return response
 
     # Check if 'capital-gain' column matches expected input
-    capital_gains = float(request["data"]["capital-gain"])
+    capital_gains = float(json_request["data"]["capital-gain"])
     if capital_gains < 0: # or capital_gains > 99999:
         response["error"] = "Column 'capital-gain' of " + str(capital_gains) + " exceed bounds."
         return response
 
     # Check if 'capital-loss' column matches expected input
-    capital_loss = float(request["data"]["capital-loss"])
+    capital_loss = float(json_request["data"]["capital-loss"])
     if capital_loss < 0:# or capital_loss > 4356:
         response["error"] = "Column 'capital-loss' of " + str(capital_loss) + " exceed bounds."
         return response
 
     # Check if 'hours-per-week' column matches expected input
-    hours_per_week = int(request["data"]["hours-per-week"])
+    hours_per_week = int(json_request["data"]["hours-per-week"])
     if hours_per_week < 0 or hours_per_week > 168:
         response["error"] = "Column 'hours-per-week' of " + str(hours_per_week) + " exceed bounds."
         return response
 
-    predict_response = predict(request)
+    # predict_response = predict(json_request)
     response["prediction"] = True #predict_response["prediction"]
     response["probability"] = float(1) #predict_response["probability"]
 
