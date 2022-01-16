@@ -124,36 +124,41 @@ def verify(request):
 def predict():
     obs_dict = request.get_json()
 
-    model = verify(obs_dict)
-
-    if not isinstance(model, Prediction):
-        print(model)
-        response['error'] = model # When an error occurs, it returns the str message
-        return jsonify(response)
-
-
-    # Remove observation_id from input
-    _id = obs_dict['observation_id']
-    del obs_dict['observation_id']
-
-
-    #df = pd.DataFrame([obs_dict], columns=columns).astype(dtypes)
-    proba = 0.5 # pipeline.predict_proba(df)[0, 1]
-    prediction = True if proba > 0.5 else False # Set the appropriate threshold
-
-    # Build response
-    response = {
-        'observation_id': _id,
-        'prediction': prediction,
-    }
-
-    # Upddate and save the model
-    model.proba = proba
-    model.prediction = prediction
     try:
+        model = verify(obs_dict)
+
+        if not isinstance(model, Prediction):
+            print(model)
+            response['error'] = model # When an error occurs, it returns the str message
+            return jsonify(response)
+
+
+        # Remove observation_id from input
+        _id = obs_dict['observation_id']
+        del obs_dict['observation_id']
+
+
+        df = pd.DataFrame([obs_dict], columns=columns).astype(dtypes)
+        proba = pipeline.predict_proba(df)[0, 1]
+        prediction = True if proba >= 0.5 else False # Set the appropriate threshold
+
+        # Build response
+        response = {
+            'observation_id': _id,
+            'prediction': prediction,
+        }
+
+        # Upddate and save the model
+        model.proba = proba
+        model.prediction = prediction
         model.save()
+
     except IntegrityError:
         print('Observation ID: "{}" already exists'.format(_id))
+        response = {'error': 'Observation ID: "{}" already exists'.format(_id)}
+    except:
+        print('An unknown error occurred')
+        response = {'error': 'An unknown error occurred'}
 
     return jsonify(response)
 
