@@ -206,9 +206,11 @@ def predict():
         model.proba = proba
         model.prediction = prediction
         model.save()
+
     except IntegrityError:
         print('Observation ID: "{}" already exists'.format(_id))
         response = {'error': 'Observation ID: "{}" already exists'.format(_id)}
+        DB.rollback()
     except:
         print('An unknown error occurred')
         response = {'error': 'An unknown error occurred'}
