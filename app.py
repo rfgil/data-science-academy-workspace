@@ -171,6 +171,11 @@ def preprocess(data):
 def predict():
     obs_dict = request.get_json()
 
+    try:
+        obs_dict["index"] = obs_dict["index"]
+    except:
+        obs_dict["index"] = 1
+
     response = {}
 
     try:
