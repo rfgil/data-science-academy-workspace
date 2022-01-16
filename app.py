@@ -126,9 +126,9 @@ def predict():
 
     model = verify(obs_dict)
 
-    if not isinstance(prediction, Prediction):
-        print(prediction)
-        response['error'] = prediction # When an error occurs, it returns the str message
+    if not isinstance(model, Prediction):
+        print(model)
+        response['error'] = model # When an error occurs, it returns the str message
         return jsonify(response)
 
 
@@ -184,7 +184,7 @@ def sanity_check():
     try:
         model = Prediction.get(Prediction.observation_id == obs['observation_id'])
 
-        return jsonify(model_to_dict(obs))
+        return jsonify(model_to_dict(model))
     except Prediction.DoesNotExist:
         error_msg = 'Observation ID: "{}" does not exist'.format(obs['observation_id'])
         return jsonify({'error': error_msg})
