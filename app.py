@@ -72,9 +72,9 @@ with open('dtypes.pickle', 'rb') as fh:
 
 app = Flask(__name__)
 
-def verify(request):
+valid_columns = ["observation_id","Age range","Date","Gender","Latitude","Longitude","Legislation","Object of search","Officer-defined ethnicity","Self-defined ethnicity","station","Type"]
 
-    valid_columns = ["observation_id","Age range","Date","Gender","Latitude","Longitude","Legislation","Object of search","Officer-defined ethnicity","Self-defined ethnicity","Station","Type"]
+def verify(request):
 
     # Check all requested columns are valid
     for column in request.keys():
@@ -125,8 +125,8 @@ def preprocess(data):
 
     _df = data.copy()
     # remove columns not in payload
-    columns_to_drop = ['Part of a policing operation', 'Outcome', 'Outcome linked to object of search', 'Removal of more than just outer clothing']
-    _df = _df.drop(columns=columns_to_drop)
+    #columns_to_drop = ['Part of a policing operation', 'Outcome', 'Outcome linked to object of search', 'Removal of more than just outer clothing']
+    #_df = _df.drop(columns=columns_to_drop)
 
     # Date and time
     _df['Date'] = _df['Date'].apply(lambda x: x[0:13])
@@ -160,7 +160,7 @@ def preprocess(data):
     missings = _df[_df['Object of search']=='Detailed object of search unavailable'].index.tolist()
     _df = _df.drop(labels=missings, axis=0)
     # drop id
-    _df = _df.drop(columns=['observation_id'])
+    #_df = _df.drop(columns=['observation_id'])
     return _df
 
 @app.route('/predict', methods=['POST'])
@@ -181,8 +181,8 @@ def predict():
         del obs_dict['observation_id']
 
 
-        df = pd.DataFrame([obs_dict], columns=columns).astype(dtypes)
-        df_clean = preprocess(df)
+        df = pd.DataFrame([obs_dict], columns=valid_columns)
+        df_clean = preprocess(df) #.astype(dtypes)
         proba = pipeline.predict_proba(df_clean)[0, 1]
         prediction = True if proba >= 0.5 else False # Set the appropriate threshold
 
