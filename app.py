@@ -26,6 +26,7 @@ class Prediction(Model):
     prediction = BooleanField(null=True)
 
     observation_id = TextField(unique=True)
+    index = IntegerField()
     age = TextField()
     date = DateTimeField()
     gender = TextField()
@@ -36,6 +37,7 @@ class Prediction(Model):
     officer_defined_ethnicity = TextField()
     self_defined_ethnicity = TextField()
     station  = TextField()
+    removal_clothing = TextField()
     type_ = TextField()
 
     # true_class
@@ -72,14 +74,14 @@ with open('dtypes.pickle', 'rb') as fh:
 
 app = Flask(__name__)
 
-valid_columns = ["observation_id","Age range","Date","Gender","Latitude","Longitude","Legislation","Object of search","Officer-defined ethnicity","Self-defined ethnicity","station","Type"]
+valid_columns = ["observation_id","index","Age range","Date","Gender","Latitude","Longitude","Legislation","Object of search","Officer-defined ethnicity","Self-defined ethnicity","station","Removal of more than just outer clothing","Type"]
 
 def verify(request):
 
     # Check all requested columns are valid
-    for column in request.keys():
-        if column not in valid_columns:
-            return column + " is not a valid field"
+    #for column in request.keys():
+    #    if column not in valid_columns:
+    #        return column + " is not a valid field"
 
     # Check if there are missing columns
     for column in valid_columns:
@@ -107,6 +109,7 @@ def verify(request):
         # proba =
 
         observation_id = request["observation_id"],
+        index = request["index"],
         age = request["Age range"],
         date = request["Date"],
         gender = request["Gender"],
@@ -117,6 +120,7 @@ def verify(request):
         officer_defined_ethnicity = request["Officer-defined ethnicity"],
         self_defined_ethnicity = request["Self-defined ethnicity"],
         station  = request["station"],
+        removal_clothing = request["Removal of more than just outer clothing"],
         type_ = request["Type"]
     )
 
@@ -182,11 +186,13 @@ def predict():
         del obs_dict['observation_id']
 
 
-        df = pd.DataFrame([obs_dict], columns=valid_columns) #.astype(dtypes)
-        df_clean = preprocess(df).drop('observation_id', axis=1)
+        df = pd.DataFrame([obs_dict], columns=valid_columns)
+
+         #.astype(dtypes)
+        df_clean = preprocess(df).drop('observation_id', axis=1).drop('index', axis=1)
         df_clean["Search Outcome"] = df_clean.Type.apply(lambda x: True)
         df_clean = df_clean[columns]
-        
+
         proba = pipeline.predict_proba(df_clean)[0, 1]
         prediction = True if proba >= 0.5 else False # Set the appropriate threshold
 
