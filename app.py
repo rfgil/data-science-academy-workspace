@@ -92,8 +92,8 @@ def predict():
     del obs_dict['observation_id']
 
 
-    df = pd.DataFrame([obs_dict], columns=columns).astype(dtypes)
-    proba = pipeline.predict_proba(df)[0, 1]
+    #df = pd.DataFrame([obs_dict], columns=columns).astype(dtypes)
+    proba = 0.5 # pipeline.predict_proba(df)[0, 1]
     prediction = True if proba > 0.5 else False # Set the appropriate threshold
 
     # Build response
@@ -120,7 +120,6 @@ def update():
     if not isinstance(obs['label'], bool):
         return jsonify({'error': 'label is not a boolean'})
 
-
     try:
         model = Prediction.get(Prediction.observation_id == obs['observation_id'])
 
@@ -129,12 +128,12 @@ def update():
 
         return obs
     except Prediction.DoesNotExist:
-        error_msg = 'Observation ID: "{}" does not exist'.format(obs['id'])
+        error_msg = 'Observation ID: "{}" does not exist'.format(obs['observation_id'])
         return jsonify({'error': error_msg})
 
 
-@app.route('/get', methods=['POST'])
-def update():
+@app.route('/sanity_check', methods=['POST'])
+def sanity_check():
     obs = request.get_json()
 
     try:
@@ -142,7 +141,7 @@ def update():
 
         return jsonify(model_to_dict(obs))
     except Prediction.DoesNotExist:
-        error_msg = 'Observation ID: "{}" does not exist'.format(obs['id'])
+        error_msg = 'Observation ID: "{}" does not exist'.format(obs['observation_id'])
         return jsonify({'error': error_msg})
 
 
