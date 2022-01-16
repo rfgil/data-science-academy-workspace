@@ -5,7 +5,7 @@ import joblib
 import pandas as pd
 from flask import Flask, jsonify, request
 from peewee import (
-    Model, IntegerField, FloatField,
+    Model, IntegerField, FloatField, BooleanField, DateTimeField,
     TextField, IntegrityError
 )
 from playhouse.shortcuts import model_to_dict
@@ -21,10 +21,24 @@ from playhouse.db_url import connect
 DB = connect(os.environ.get('DATABASE_URL') or 'sqlite:///predictions.db')
 
 class Prediction(Model):
-    observation_id = IntegerField(unique=True)
-    observation = TextField()
     proba = FloatField()
-    true_class = IntegerField(null=True)
+    prediction = BooleanField(null=True)
+
+    observation_id = TextField(unique=True)
+    age = TextField()
+    date = DateTimeField()
+    gender = TextField()
+    latitude = FloatField()
+    longitude = FloatField()
+    legislation = TextField()
+    object_of_search = TextField()
+    officer_defined_ethnicity = TextField()
+    self_defined_ethnicity = TextField()
+    station  = TextField()
+    type_ = TextField()
+
+    # true_class
+    label = BooleanField(null=True)
 
     class Meta:
         database = DB
@@ -57,46 +71,80 @@ with open('dtypes.pickle', 'rb') as fh:
 
 app = Flask(__name__)
 
+def verify(request):
+    pass
+
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    # flask provides a deserialization convenience function called
-    # get_json that will work if the mimetype is application/json
     obs_dict = request.get_json()
-    _id = obs_dict['id']
-    observation = obs_dict['observation']
-    # now do what we already learned in the notebooks about how to transform
-    # a single observation into a dataframe that will work with a pipeline
-    obs = pd.DataFrame([observation], columns=columns).astype(dtypes)
-    # now get ourselves an actual prediction of the positive class
-    proba = pipeline.predict_proba(obs)[0, 1]
-    response = {'proba': proba}
-    p = Prediction(
-        observation_id=_id,
-        proba=proba,
-        observation=request.data
-    )
+
+    model = verify(obs_dict)
+
+    if not isinstance(prediction, Prediction):
+        print(prediction)
+        response['error'] = prediction # When an error occurs, it returns the str message
+        return jsonify(response)
+
+
+    # Remove observation_id from input
+    _id = obs_dict['observation_id']
+    del obs_dict['observation_id']
+
+
+    df = pd.DataFrame([obs_dict], columns=columns).astype(dtypes)
+    proba = pipeline.predict_proba(df)[0, 1]
+    prediction = True if proba > 0.5 else False # Set the appropriate threshold
+
+    # Build response
+    response = {
+        'observation_id': _id,
+        'prediction': prediction,
+    }
+
+    # Upddate and save the model
+    model.proba = proba
+    model.prediction = prediction
     try:
-        p.save()
+        model.save()
     except IntegrityError:
-        error_msg = 'Observation ID: "{}" already exists'.format(_id)
-        response['error'] = error_msg
-        print(error_msg)
-        DB.rollback()
+        print('Observation ID: "{}" already exists'.format(_id))
+
     return jsonify(response)
 
 
 @app.route('/update', methods=['POST'])
 def update():
     obs = request.get_json()
+
+    if not isinstance(obs['label'], bool):
+        return jsonify({'error': 'label is not a boolean'})
+
+
     try:
-        p = Prediction.get(Prediction.observation_id == obs['id'])
-        p.true_class = obs['true_class']
-        p.save()
-        return jsonify(model_to_dict(p))
+        model = Prediction.get(Prediction.observation_id == obs['observation_id'])
+
+        model.label = obs['label']
+        model.save()
+
+        return obs
     except Prediction.DoesNotExist:
         error_msg = 'Observation ID: "{}" does not exist'.format(obs['id'])
         return jsonify({'error': error_msg})
+
+
+@app.route('/get', methods=['POST'])
+def update():
+    obs = request.get_json()
+
+    try:
+        model = Prediction.get(Prediction.observation_id == obs['observation_id'])
+
+        return jsonify(model_to_dict(obs))
+    except Prediction.DoesNotExist:
+        error_msg = 'Observation ID: "{}" does not exist'.format(obs['id'])
+        return jsonify({'error': error_msg})
+
 
 
 @app.route('/list-db-contents')
