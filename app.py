@@ -72,7 +72,52 @@ with open('dtypes.pickle', 'rb') as fh:
 app = Flask(__name__)
 
 def verify(request):
-    pass
+
+    valid_columns = ["observation_id","Age range","Date","Gender","Latitude","Longitude","Legislation","Object of search","Officer-defined ethnicity","Self-defined ethnicity","Station","Type"]
+
+    # Check all requested columns are valid
+    for column in request.keys():
+        if column not in valid_columns:
+            return column + " is not a valid field"
+
+    # Check if there are missing columns
+    for column in valid_columns:
+        if(column not in request.keys()):
+            return column + " field is missing"
+
+
+    # Check if 'Gender' column matches expected input
+    gender = request['Gender']
+    if gender.lower() not in ['male', 'female'] :
+        return "Unexpected " + gender + " category on 'Gender' field"
+
+
+    # Check if 'Longitude' column matches expected input
+    longitude = request['Longitude']
+    if longitude < -180 or longitude > 180:
+        return "Unexpected " + longitude + " on 'Longitude' field"
+
+    # Check if 'Latitude' column matches expected input
+    latitude = request['Latitude']
+    if latitude < -90 or latitude > 90:
+        return "Unexpected " + latitude + " on 'Longitude' field"
+
+    return Prediction(
+        # proba =
+
+        observation_id = request["observation_id"],
+        age = request["Age range"],
+        date = request["Date"],
+        gender = request["Gender"],
+        latitude = request["Latitude"],
+        longitude = request["Longitude"],
+        legislation = request["Legislation"],
+        object_of_search = request["Object of search"],
+        officer_defined_ethnicity = request["Officer-defined ethnicity"],
+        self_defined_ethnicity = request["Self-defined ethnicity"],
+        station  = request["Station"],
+        type_ = request["Type"]
+    )
 
 
 @app.route('/predict', methods=['POST'])
