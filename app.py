@@ -116,7 +116,7 @@ def verify(request):
         object_of_search = request["Object of search"],
         officer_defined_ethnicity = request["Officer-defined ethnicity"],
         self_defined_ethnicity = request["Self-defined ethnicity"],
-        station  = request["Station"],
+        station  = request["station"],
         type_ = request["Type"]
     )
 
@@ -167,6 +167,8 @@ def preprocess(data):
 def predict():
     obs_dict = request.get_json()
 
+    response = {}
+
     try:
         model = verify(obs_dict)
 
@@ -175,14 +177,16 @@ def predict():
             response['error'] = model # When an error occurs, it returns the str message
             return jsonify(response)
 
-
         # Remove observation_id from input
         _id = obs_dict['observation_id']
         del obs_dict['observation_id']
 
 
-        df = pd.DataFrame([obs_dict], columns=valid_columns)
-        df_clean = preprocess(df) #.astype(dtypes)
+        df = pd.DataFrame([obs_dict], columns=valid_columns) #.astype(dtypes)
+        df_clean = preprocess(df).drop('observation_id', axis=1)
+        df_clean["Search Outcome"] = df_clean.Type.apply(lambda x: True)
+        df_clean = df_clean[columns]
+        
         proba = pipeline.predict_proba(df_clean)[0, 1]
         prediction = True if proba >= 0.5 else False # Set the appropriate threshold
 
