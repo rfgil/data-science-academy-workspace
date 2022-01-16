@@ -10,6 +10,7 @@ from peewee import (
 )
 from playhouse.shortcuts import model_to_dict
 from playhouse.db_url import connect
+import traceback
 
 
 ########################################
@@ -152,13 +153,13 @@ def predict():
         model.proba = proba
         model.prediction = prediction
         model.save()
-
     except IntegrityError:
         print('Observation ID: "{}" already exists'.format(_id))
         response = {'error': 'Observation ID: "{}" already exists'.format(_id)}
     except:
         print('An unknown error occurred')
         response = {'error': 'An unknown error occurred'}
+        traceback.print_exc()
 
     return jsonify(response)
 
