@@ -121,6 +121,48 @@ def verify(request):
     )
 
 
+def preprocess(data):
+
+    _df = data.copy()
+    # remove columns not in payload
+    columns_to_drop = ['Part of a policing operation', 'Outcome', 'Outcome linked to object of search', 'Removal of more than just outer clothing']
+    _df = _df.drop(columns=columns_to_drop)
+
+    # Date and time
+    _df['Date'] = _df['Date'].apply(lambda x: x[0:13])
+    _df['Date'] = pd.to_datetime(_df['Date'], format='%Y-%m-%dT%H')
+    _df['year'] = _df['Date'].dt.year
+    _df['month'] = _df['Date'].dt.month
+    _df['day'] = _df['Date'].dt.day
+    _df['hour'] = _df['Date'].dt.hour
+    _df = _df.drop(columns=['Date'])
+    # lower txt columns
+    cols_txt = ['Gender', 'Legislation', 'Type', 'station', 'Object of search', 'Officer-defined ethnicity', 'Self-defined ethnicity']
+    for col in cols_txt :
+        _df[col] = _df[col].apply(lambda x: str(x).lower())
+    # Longitude and Latitude
+    #_df['Longitude'] = _df['Longitude'].fillna(value='unknown')
+    #_df['Latitude'] = _df['Latitude'].fillna(value='unknown')
+
+    # Gender
+    _df = _df.copy().loc[_df['Gender']!='Other']
+    # Age range
+    _df = _df.copy().loc[_df['Age range']!='under 10']
+    # Self defined Ethicity - drop missing values (52)
+    missings = _df[_df['Self-defined ethnicity'].isnull()].index.tolist()
+    _df = _df.drop(labels=missings, axis=0)
+    # Legislation - drop feature occuring only once
+    missings = _df[_df['Legislation']=='Aviation Security Act 1982 (section 27(1))'].index.tolist()
+    _df = _df.drop(labels=missings, axis=0)
+    missings = _df[_df['Legislation']=='Psychoactive Substances Act 2016 (s36(2))'].index.tolist()
+    _df = _df.drop(labels=missings, axis=0)
+    # object of search - drop feature occuring only once
+    missings = _df[_df['Object of search']=='Detailed object of search unavailable'].index.tolist()
+    _df = _df.drop(labels=missings, axis=0)
+    # drop id
+    _df = _df.drop(columns=['observation_id'])
+    return _df
+
 @app.route('/predict', methods=['POST'])
 def predict():
     obs_dict = request.get_json()
@@ -140,7 +182,8 @@ def predict():
 
 
         df = pd.DataFrame([obs_dict], columns=columns).astype(dtypes)
-        proba = pipeline.predict_proba(df)[0, 1]
+        df_clean = preprocess(df)
+        proba = pipeline.predict_proba(df_clean)[0, 1]
         prediction = True if proba >= 0.5 else False # Set the appropriate threshold
 
         # Build response
