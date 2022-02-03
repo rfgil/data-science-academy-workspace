@@ -6,12 +6,13 @@ import pandas as pd
 from flask import Flask, jsonify, request
 from peewee import (
     Model, IntegerField, FloatField, BooleanField, DateTimeField,
-    TextField, IntegrityError
+    TextField, IntegrityError, DataError, PeeweeException, DoesNotExist
 )
-from playhouse.shortcuts import model_to_dict
+from playhouse.shortcuts import (model_to_dict, dict_to_model)
 from playhouse.db_url import connect
 import traceback
-
+import uuid
+from enum import Enum
 
 ########################################
 # Begin database stuff
@@ -19,35 +20,58 @@ import traceback
 # the connect function checks if there is a DATABASE_URL env var
 # if it exists, it uses it to connect to a remote postgres db
 # otherwise, it connects to a local sqlite db stored in predictions.db
-DB = connect(os.environ.get('DATABASE_URL') or 'sqlite:///predictions.db')
+DB = connect(os.environ.get('DATABASE_URL') or 'postgres://postgres:root@localhost:5432/postgres') #'sqlite:///predictions.db')
 
-class Prediction(Model):
-    proba = FloatField()
+class MedicalEncounter(Model):
+    # Model preditction
+    proba = FloatField(null=True)
     prediction = BooleanField(null=True)
 
-    observation_id = TextField(unique=True)
-    index = IntegerField()
-    age = TextField()
-    date = DateTimeField()
-    gender = TextField()
-    latitude = FloatField()
-    longitude = FloatField()
-    legislation = TextField()
-    object_of_search = TextField()
-    officer_defined_ethnicity = TextField()
-    self_defined_ethnicity = TextField()
-    station  = TextField()
-    removal_clothing = TextField()
-    type_ = TextField()
+    # True label
+    true_label = BooleanField(null=True)
 
-    # true_class
-    label = BooleanField(null=True)
+    # --- Parameters ---
+    # Generates a random UUID (if not provided) to avoid IntegrityError: UNIQUE constraint failed: medicalencounter.admission_id
+    admission_id = TextField(unique=True, default=uuid.uuid1)
+    patient_id = TextField(null=True)
+    race = TextField(null=True)
+    gender = TextField(null=True)
+    age = TextField(null=True)
+    weight = TextField(null=True)
+    admission_type_code = FloatField(null=True)
+    discharge_disposition_code = FloatField(null=True)
+    admission_source_code = FloatField(null=True)
+    time_in_hospital = FloatField(null=True)
+    payer_code = TextField(null=True)
+    medical_specialty = TextField(null=True)
+    has_prosthesis = BooleanField(null=True)
+    complete_vaccination_status = TextField(null=True)
+    num_lab_procedures = FloatField(null=True)
+    num_procedures = FloatField(null=True)
+    num_medications = FloatField(null=True)
+    number_outpatient = FloatField(null=True)
+    number_emergency = FloatField(null=True)
+    number_inpatient = FloatField(null=True)
+    diag_1 = TextField(null=True)
+    diag_2 = TextField(null=True)
+    diag_3 = TextField(null=True)
+    number_diagnoses = FloatField(null=True)
+    blood_type = TextField(null=True)
+    hemoglobin_level = FloatField(null=True)
+    blood_transfusion = BooleanField(null=True)
+    max_glu_serum = TextField(null=True)
+    A1Cresult = TextField(null=True)
+    diuretics = TextField(null=True)
+    insulin = TextField(null=True)
+    change = TextField(null=True)
+    diabetesMed = TextField(null=True)
+    readmitted = TextField(null=True)
 
     class Meta:
         database = DB
 
 
-DB.create_tables([Prediction], safe=True)
+DB.create_tables([MedicalEncounter], safe=True)
 
 # End database stuff
 ########################################
@@ -56,211 +80,185 @@ DB.create_tables([Prediction], safe=True)
 # Unpickle the previously-trained model
 
 
-with open('columns.json') as fh:
-    columns = json.load(fh)
+#with open('columns.json') as fh:
+#    columns = json.load(fh)
 
-pipeline = joblib.load('pipeline.pickle')
+#pipeline = joblib.load('pipeline.pickle')
 
-with open('dtypes.pickle', 'rb') as fh:
-    dtypes = pickle.load(fh)
+#with open('dtypes.pickle', 'rb') as fh:
+#    dtypes = pickle.load(fh)
 
+ordered_columns = ['admission_id', 'patient_id', 'race', 'gender', 'age', 'weight',
+       'admission_type_code', 'discharge_disposition_code',
+       'admission_source_code', 'time_in_hospital', 'payer_code',
+       'medical_specialty', 'has_prosthesis', 'complete_vaccination_status',
+       'num_lab_procedures', 'num_procedures', 'num_medications',
+       'number_outpatient', 'number_emergency', 'number_inpatient', 'diag_1',
+       'diag_2', 'diag_3', 'number_diagnoses', 'blood_type',
+       'hemoglobin_level', 'blood_transfusion', 'max_glu_serum', 'A1Cresult',
+       'diuretics', 'insulin', 'change', 'diabetesMed', 'readmitted']
 
 # End model un-pickling
 ########################################
 
+########################################
+# Begin utils
+
+class ApiError(str, Enum):
+    INVALID_REQUEST = "Invalid request"
+    DUPLICATED_ADMISSION_ID = "Duplicated request"
+    UNKNONW_EXCEPTION = "Unknown exception"
+    DOES_NOT_EXIST = "Does not exist"
+
+
+def build_error_response(message, error_type):
+    """
+    Builds an error response according to the API's schema
+    """
+    return {
+      "detail": [
+        {
+          "loc": [],
+          "msg": message,
+          "type": error_type + ""
+        }
+      ]
+    }
+
+
+def db_action(action):
+    """
+    Executes a given databse method and handles its exceptions.
+
+    Returns a tupple with:
+        when the action is successful:
+        * The action response
+        * None
+        * Empty dict
+
+        when the action results in an exception:
+        * None
+        * ApiError enum identifier
+        * Error response dict
+    """
+    try:
+        return (action(), None, {})
+    except PeeweeException as e:
+        DB.rollback() # Database exceptions require a rollback
+
+        if type(e) is DataError:
+            # One or more fields have the wrong type
+            error_type = ApiError.INVALID_REQUEST
+            error_message = str(e.__context__) #.partition('\n')[0])
+            print(e.__context__)
+
+        elif type(e) is IntegrityError:
+            # The observation already existis in the database
+            error_type = ApiError.DUPLICATED_ADMISSION_ID
+            error_message = "The provided admission_id already exists in the database"
+            print(e.__context__)
+
+        else:
+            traceback.print_exc() #traceback.print_exception(type(e), e, e.__traceback__)
+
+    except DoesNotExist as e:
+        error_type = ApiError.DOES_NOT_EXIST
+        error_message = "The provided admission_id does not exist in the database"
+        traceback.print_exc() #traceback.print_exception(type(e), e, e.__traceback__)
+
+    except:
+        # Catch all handler, this should never happen
+        traceback.print_exc()
+
+        error_type = ApiError.UNKNONW_EXCEPTION
+        error_message = "A runtime exception occurred"
+
+    return (None, error_type, build_error_response(error_message, error_type))
+
+
+def is_readmitted(is_readmitted):
+    return "Yes" if is_readmitted else "No"
+
+# End utils
+########################################
 
 ########################################
 # Begin webserver stuff
 
 app = Flask(__name__)
 
-valid_columns = ["observation_id","index","Age range","Date","Gender","Latitude","Longitude","Legislation","Object of search","Officer-defined ethnicity","Self-defined ethnicity","station","Removal of more than just outer clothing","Type"]
-
-def verify(request):
-
-    # Check all requested columns are valid
-    #for column in request.keys():
-    #    if column not in valid_columns:
-    #        return column + " is not a valid field"
-
-    # Check if there are missing columns
-    for column in valid_columns:
-        if(column not in request.keys()):
-            return column + " field is missing"
-
-
-    # Check if 'Gender' column matches expected input
-    gender = request['Gender']
-    if gender.lower() not in ['male', 'female'] :
-        return "Unexpected " + gender + " category on 'Gender' field"
-
-
-    # Check if 'Longitude' column matches expected input
-    longitude = request['Longitude']
-    if longitude < -180 or longitude > 180:
-        return "Unexpected " + longitude + " on 'Longitude' field"
-
-    # Check if 'Latitude' column matches expected input
-    latitude = request['Latitude']
-    if latitude < -90 or latitude > 90:
-        return "Unexpected " + latitude + " on 'Longitude' field"
-
-    return Prediction(
-        # proba =
-
-        observation_id = request["observation_id"],
-        index = request["index"],
-        age = request["Age range"],
-        date = request["Date"],
-        gender = request["Gender"],
-        latitude = request["Latitude"],
-        longitude = request["Longitude"],
-        legislation = request["Legislation"],
-        object_of_search = request["Object of search"],
-        officer_defined_ethnicity = request["Officer-defined ethnicity"],
-        self_defined_ethnicity = request["Self-defined ethnicity"],
-        station  = request["station"],
-        removal_clothing = request["Removal of more than just outer clothing"],
-        type_ = request["Type"]
-    )
-
-
-def preprocess(data):
-
-    _df = data.copy()
-    # remove columns not in payload
-    #columns_to_drop = ['Part of a policing operation', 'Outcome', 'Outcome linked to object of search', 'Removal of more than just outer clothing']
-    #_df = _df.drop(columns=columns_to_drop)
-
-    # Date and time
-    _df['Date'] = _df['Date'].apply(lambda x: x[0:13])
-    _df['Date'] = pd.to_datetime(_df['Date'], format='%Y-%m-%dT%H')
-    _df['year'] = _df['Date'].dt.year
-    _df['month'] = _df['Date'].dt.month
-    _df['day'] = _df['Date'].dt.day
-    _df['hour'] = _df['Date'].dt.hour
-    _df = _df.drop(columns=['Date'])
-    # lower txt columns
-    cols_txt = ['Gender', 'Legislation', 'Type', 'station', 'Object of search', 'Officer-defined ethnicity', 'Self-defined ethnicity']
-    for col in cols_txt :
-        _df[col] = _df[col].apply(lambda x: str(x).lower())
-    # Longitude and Latitude
-    #_df['Longitude'] = _df['Longitude'].fillna(value='unknown')
-    #_df['Latitude'] = _df['Latitude'].fillna(value='unknown')
-
-    # Gender
-    _df = _df.copy().loc[_df['Gender']!='Other']
-    # Age range
-    _df = _df.copy().loc[_df['Age range']!='under 10']
-    # Self defined Ethicity - drop missing values (52)
-    missings = _df[_df['Self-defined ethnicity'].isnull()].index.tolist()
-    _df = _df.drop(labels=missings, axis=0)
-    # Legislation - drop feature occuring only once
-    missings = _df[_df['Legislation']=='Aviation Security Act 1982 (section 27(1))'].index.tolist()
-    _df = _df.drop(labels=missings, axis=0)
-    missings = _df[_df['Legislation']=='Psychoactive Substances Act 2016 (s36(2))'].index.tolist()
-    _df = _df.drop(labels=missings, axis=0)
-    # object of search - drop feature occuring only once
-    missings = _df[_df['Object of search']=='Detailed object of search unavailable'].index.tolist()
-    _df = _df.drop(labels=missings, axis=0)
-    # drop id
-    #_df = _df.drop(columns=['observation_id'])
-    return _df
-
 @app.route('/predict', methods=['POST'])
 def predict():
     obs_dict = request.get_json()
 
-    try:
-        obs_dict["index"] = obs_dict["index"]
-    except:
-        obs_dict["index"] = 1
+    medical_encounter, api_error, error_response = db_action(lambda: MedicalEncounter.create(**obs_dict))
 
-    response = {}
+    if api_error == ApiError.DUPLICATED_ADMISSION_ID:
+        # If the medical encounter already exists in the database, discard new data, and return right away
+        medical_encounter, api_error, error_response = db_action(lambda: MedicalEncounter.get(admission_id=obs_dict['admission_id']))
+        if api_error == None:
+            return {"readmitted": is_readmitted(medical_encounter.prediction)}
 
-    try:
-        model = verify(obs_dict)
+    if api_error != None:
+        # End execution if an error occurred
+        return error_response, 422
 
-        if not isinstance(model, Prediction):
-            print(model)
-            response['error'] = model # When an error occurs, it returns the str message
-            return jsonify(response)
+    # Convert medical encounter into a pandas dataframe
+    df = pd.DataFrame.from_dict([model_to_dict(medical_encounter)])[ordered_columns]
 
-        # Remove observation_id from input
-        _id = obs_dict['observation_id']
-        del obs_dict['observation_id']
+    # Execute pipeline
+    proba = 1 #pipeline.predict_proba(df_clean)[0, 1]
+    prediction = True if proba >= 0.5 else False
+
+    # Update the model
+    medical_encounter.proba = proba
+    medical_encounter.prediction = prediction
+    _, api_error, error_response = db_action(lambda: medical_encounter.save())
 
 
-        df = pd.DataFrame([obs_dict], columns=valid_columns)
-
-         #.astype(dtypes)
-        df_clean = preprocess(df).drop('observation_id', axis=1).drop('index', axis=1)
-        df_clean["Search Outcome"] = df_clean.Type.apply(lambda x: True)
-        df_clean = df_clean[columns]
-
-        proba = pipeline.predict_proba(df_clean)[0, 1]
-        prediction = True if proba >= 0.5 else False # Set the appropriate threshold
-
-        # Build response
-        response = {
-            'observation_id': _id,
-            'prediction': prediction,
-        }
-
-        # Upddate and save the model
-        model.proba = proba
-        model.prediction = prediction
-        model.save()
-
-    except IntegrityError:
-        print('Observation ID: "{}" already exists'.format(_id))
-        response = {'error': 'Observation ID: "{}" already exists'.format(_id)}
-        DB.rollback()
-    except:
-        print('An unknown error occurred')
-        response = {'error': 'An unknown error occurred'}
-        traceback.print_exc()
-
-    return jsonify(response)
+    if api_error != None:
+        return error_response, 422
+    else:
+        return {"readmitted": is_readmitted(prediction)}
 
 
 @app.route('/update', methods=['POST'])
 def update():
-    obs = request.get_json()
+    obs_dict = request.get_json()
 
-    if not isinstance(obs['label'], bool):
-        return jsonify({'error': 'label is not a boolean'})
+    admission_id = obs_dict.get('admission_id')
+    true_label = obs_dict.get('readmitted')
 
-    try:
-        model = Prediction.get(Prediction.observation_id == obs['observation_id'])
+    if admission_id == None or true_label == None:
+        return build_error_response("Required arguments are not available", ApiError.INVALID_REQUEST), 422
 
-        model.label = obs['label']
-        model.save()
+    medical_encounter, api_error, error_response = db_action(lambda: MedicalEncounter.get(admission_id=admission_id))
 
-        return obs
-    except Prediction.DoesNotExist:
-        error_msg = 'Observation ID: "{}" does not exist'.format(obs['observation_id'])
-        return jsonify({'error': error_msg})
+    #if api_error == ApiError.DOES_NOT_EXIST:
+    #    medical_encounter, api_error, error_response = db_action(lambda: MedicalEncounter.create(**obs_dict))
+
+    if api_error != None:
+        return error_response, 422
+
+    medical_encounter.true_label = (str(true_label).lower() == "yes")
+
+    _, api_error, error_response = db_action(lambda: medical_encounter.save())
 
 
-@app.route('/sanity_check', methods=['POST'])
-def sanity_check():
-    obs = request.get_json()
-
-    try:
-        model = Prediction.get(Prediction.observation_id == obs['observation_id'])
-
-        return jsonify(model_to_dict(model))
-    except Prediction.DoesNotExist:
-        error_msg = 'Observation ID: "{}" does not exist'.format(obs['observation_id'])
-        return jsonify({'error': error_msg})
-
+    if api_error != None:
+        return error_response, 422
+    else:
+        return {
+            "admission_id": medical_encounter.admission_id,
+            "actual_readmitted": is_readmitted(medical_encounter.true_label),
+            "predicted_readmitted": is_readmitted(medical_encounter.prediction)
+        }
 
 
 @app.route('/list-db-contents')
 def list_db_contents():
     return jsonify([
-        model_to_dict(obs) for obs in Prediction.select()
+        model_to_dict(obs) for obs in MedicalEncounter.select()
     ])
 
 
@@ -269,6 +267,3 @@ def list_db_contents():
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
-
-
-#
