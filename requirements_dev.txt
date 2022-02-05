@@ -10,3 +10,4 @@ category_encoders==2.2.2
 flask==1.1.2
 peewee==3.13.3
 psycopg2-binary==2.8.6
+dill==0.3.4

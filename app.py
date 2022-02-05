@@ -1,6 +1,6 @@
 import os
 import json
-import pickle
+import dill as pickle
 import joblib
 import pandas as pd
 from flask import Flask, jsonify, request
@@ -65,7 +65,6 @@ class MedicalEncounter(Model):
     insulin = TextField(null=True)
     change = TextField(null=True)
     diabetesMed = TextField(null=True)
-    readmitted = TextField(null=True)
 
     class Meta:
         database = DB
@@ -83,7 +82,7 @@ DB.create_tables([MedicalEncounter], safe=True)
 #with open('columns.json') as fh:
 #    columns = json.load(fh)
 
-#pipeline = joblib.load('pipeline.pickle')
+pipeline = joblib.load('pipeline.pickle')
 
 #with open('dtypes.pickle', 'rb') as fh:
 #    dtypes = pickle.load(fh)
@@ -96,7 +95,7 @@ ordered_columns = ['admission_id', 'patient_id', 'race', 'gender', 'age', 'weigh
        'number_outpatient', 'number_emergency', 'number_inpatient', 'diag_1',
        'diag_2', 'diag_3', 'number_diagnoses', 'blood_type',
        'hemoglobin_level', 'blood_transfusion', 'max_glu_serum', 'A1Cresult',
-       'diuretics', 'insulin', 'change', 'diabetesMed', 'readmitted']
+       'diuretics', 'insulin', 'change', 'diabetesMed']
 
 # End model un-pickling
 ########################################
@@ -150,13 +149,13 @@ def db_action(action):
             # One or more fields have the wrong type
             error_type = ApiError.INVALID_REQUEST
             error_message = str(e.__context__) #.partition('\n')[0])
-            print(e.__context__)
+            print("INFO: " + str(e.__context__))
 
         elif type(e) is IntegrityError:
             # The observation already existis in the database
             error_type = ApiError.DUPLICATED_ADMISSION_ID
             error_message = "The provided admission_id already exists in the database"
-            print(e.__context__)
+            print("INFO: " + str(e.__context__))
 
         else:
             traceback.print_exc() #traceback.print_exception(type(e), e, e.__traceback__)
@@ -164,7 +163,7 @@ def db_action(action):
     except DoesNotExist as e:
         error_type = ApiError.DOES_NOT_EXIST
         error_message = "The provided admission_id does not exist in the database"
-        traceback.print_exc() #traceback.print_exception(type(e), e, e.__traceback__)
+        # traceback.print_exc() #traceback.print_exception(type(e), e, e.__traceback__)
 
     except:
         # Catch all handler, this should never happen
@@ -208,7 +207,7 @@ def predict():
 
     # Execute pipeline
     proba = 1 #pipeline.predict_proba(df_clean)[0, 1]
-    prediction = True if proba >= 0.5 else False
+    prediction = True if proba >= 0.6 else False # THRESHOLD
 
     # Update the model
     medical_encounter.proba = proba
