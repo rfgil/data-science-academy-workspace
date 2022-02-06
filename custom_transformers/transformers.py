@@ -25,7 +25,6 @@ class PreProcessingTransformer(TransformerMixin):
         X_clean = X.copy()
         X_clean = X_clean.replace({None: np.nan})
         for column in self.known_categories.keys():
-            #type_ = 'object' if self.known_categories[column]['type'] == 'category' else self.known_categories[column]['type']
             X_clean[column] = (X[column]
                                .apply(lambda value: self.known_categories[column]['mapping'](value))
                                .astype(self.known_categories[column]['type'])
