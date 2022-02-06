@@ -230,7 +230,7 @@ def predict():
 
         # Execute pipeline
         proba = pipeline.predict_proba(df)[0, 1]
-        prediction = True if proba >= 0.6 else False # THRESHOLD
+        prediction = True if proba >= 0.61 else False # THRESHOLD
     except:
         print("WARN: An unexpected error occured evalutating while the model")
         traceback.print_exc()
