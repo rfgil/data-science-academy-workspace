@@ -192,11 +192,16 @@ app = Flask(__name__)
 def predict():
     request_dict = request.get_json()
 
+    # Remove index and id that may cause issues on the DB
+    request_dict.pop('id', None)
+    request_dict.pop('index', None)
+
+
     obs_dict = request_dict.copy()
 
     # Remove from the dict all values with the string "NaN"
     for key in request_dict.keys():
-        if str(obs_dict[key]).lower() == 'nan':
+        if (str(obs_dict[key]).lower()) == 'nan':
             obs_dict.pop(key, None)
 
     # There is no point in continuing if admissoion_id is missing,
