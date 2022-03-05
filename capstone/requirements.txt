@@ -19,3 +19,4 @@ pyperclip==1.8.2
 gunicorn==20.0.0
 category_encoders==2.2.2
 psycopg2-binary==2.8.6
+dill==0.3.4
