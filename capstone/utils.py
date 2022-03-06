@@ -19,6 +19,18 @@ def any_to_num(value):
     except:
         return value
 
+def pre_process_df(df):
+    df_clean = df.copy()
+    known_categories = variables_mapping()
+
+    for column in known_categories.keys():
+        if column != 'readmitted':
+            df_clean[column] = (df[column]
+                                .apply(lambda value: known_categories[column]['mapping'](value))
+                                .astype(known_categories[column]['type'])
+                               )
+    return df_clean
+
 
 def variables_mapping():
     d_ = {}
@@ -26,7 +38,6 @@ def variables_mapping():
     # admission_id - nothing to do here
 
     # patient_id - nothing to do here
-
 
     # race
     d_['race'] = {}
@@ -285,6 +296,7 @@ def variables_mapping():
         'surgery-thoracic': 'Surgery',
         'surgery-vascular': 'Surgery',
         'surgicalspecialty': 'Surgery',
+        'surgery-plasticwithinheadandneck':  'Surgery',
 
         # Others
         'allergyandimmunology': 'Others', # 10 or less occurrences
