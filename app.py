@@ -260,6 +260,10 @@ def predict():
 def update():
     obs_dict = request.get_json()
 
+    # Remove index and id that may cause issues on the DB
+    request_dict.pop('id', None)
+    request_dict.pop('index', None)
+
     admission_id = obs_dict.get('admission_id')
     true_label = obs_dict.get('readmitted')
 

@@ -51,7 +51,11 @@ class DropColumnsTransformer(TransformerMixin):
             'patient_id',
             'weight',
             'max_glu_serum',
-            'insulin' #change, diabetesMed
+            'insulin', #change, diabetesMed
+            #'age',
+            #'race',
+            #'gender',
+            #'medical_specialty  '
         ],
             axis = 1
         )
