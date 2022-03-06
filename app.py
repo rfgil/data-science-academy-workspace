@@ -235,7 +235,7 @@ def predict():
 
         # Execute pipeline
         proba = pipeline.predict_proba(df)[0, 1]
-        prediction = True if proba >= 0.61 else False # THRESHOLD
+        prediction = True if proba >= 0.44 else False # THRESHOLD
     except:
         print("WARN: An unexpected error occured evalutating while the model")
         traceback.print_exc()
@@ -261,8 +261,8 @@ def update():
     obs_dict = request.get_json()
 
     # Remove index and id that may cause issues on the DB
-    request_dict.pop('id', None)
-    request_dict.pop('index', None)
+    obs_dict.pop('id', None)
+    obs_dict.pop('index', None)
 
     admission_id = obs_dict.get('admission_id')
     true_label = obs_dict.get('readmitted')
