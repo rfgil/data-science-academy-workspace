@@ -1,0 +1,4 @@
+{
+  "admission_id": 0,
+  "readmitted": "string"
+}
